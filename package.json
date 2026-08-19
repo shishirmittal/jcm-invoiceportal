@@ -1,0 +1,17 @@
+{
+  "name": "jcm-invoice-portal",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "jspdf": "^4.2.1"
+  },
+  "devDependencies": {
+    "vite": "^8.2.1"
+  }
+}
