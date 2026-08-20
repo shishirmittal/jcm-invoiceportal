@@ -66,10 +66,11 @@ const actions = {
     setState({ screen: 'list', currentInvoice: null });
   },
 
-  async downloadPdf() {
-    if (!state.currentInvoice) return;
+  async downloadPdf(invoice) {
+    const target = invoice || state.currentInvoice;
+    if (!target) return;
     const { generateInvoicePdf } = await import('./pdf.js');
-    generateInvoicePdf(state.customer, state.currentInvoice);
+    generateInvoicePdf(state.customer, target);
   },
 };
 

@@ -232,78 +232,203 @@ html, body {
   }
 }
 
-/* Invoice list */
-.greeting {
-  padding: 16px 20px 4px;
-  font-size: 15px;
+/* Invoice list header */
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 22px 20px 14px;
+}
+
+.list-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.list-greeting {
+  font-size: 13px;
   color: var(--text-muted);
 }
 
-.greeting strong {
-  color: var(--text);
+.list-headline {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1.25;
 }
 
+.logout-link {
+  background: none;
+  border: none;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.logout-link:active {
+  opacity: 0.65;
+}
+
+/* Search */
 .search-wrap {
   padding: 8px 20px 12px;
 }
 
-.search-wrap input {
+.search-input-wrap {
+  position: relative;
+}
+
+.search-input-wrap input {
   width: 100%;
-  padding: 11px 14px;
+  padding: 11px 36px 11px 14px;
   font-size: 14px;
   border: 1.5px solid var(--border);
   border-radius: 999px;
   background: var(--bg);
 }
 
-.search-wrap input:focus {
+.search-input-wrap input:focus {
   outline: none;
   border-color: var(--gold);
   background: #fff;
 }
 
+.search-clear-btn {
+  display: none;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.search-clear-btn.visible {
+  display: flex;
+}
+
+.search-clear-btn:active {
+  background: var(--border);
+}
+
+/* Invoice list */
 .invoice-list {
-  list-style: none;
   margin: 0;
-  padding: 0 12px 20px;
+  padding: 4px 16px 20px;
   flex: 1;
   overflow-y: auto;
 }
 
-.invoice-row {
+.year-group {
+  margin-bottom: 18px;
+}
+
+.year-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 6px 4px 8px;
+}
+
+.year-cards {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 12px;
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  gap: 10px;
+}
+
+.invoice-card {
+  background: #f2f3f5;
+  border-radius: 12px;
+  padding: 13px 14px;
   cursor: pointer;
 }
 
-.invoice-row:active {
-  background: var(--bg);
+.invoice-card:active {
+  background: #ebedf0;
 }
 
-.invoice-row-main {
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.card-field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.invoice-no {
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--text);
-}
-
-.invoice-date {
-  font-size: 12.5px;
+.field-label {
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-.invoice-amt {
+.field-value {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.field-value.strong {
+  font-size: 14.5px;
+}
+
+.card-amount {
+  font-size: 16px;
   font-weight: 700;
-  font-size: 15px;
   color: var(--navy);
+  white-space: nowrap;
+}
+
+.card-bottom {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(15, 31, 61, 0.08);
+}
+
+.card-download-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  color: var(--navy);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.card-download-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.card-download-btn:active {
+  background: rgba(15, 31, 61, 0.08);
 }
 
 .empty-state {

@@ -109,10 +109,15 @@ module.exports = async (req, res) => {
       if (!itemsByInvoice[item.vch_no]) itemsByInvoice[item.vch_no] = [];
       itemsByInvoice[item.vch_no].push(item);
     }
-    const fullInvoices = invoices.map((inv) => ({
-      ...inv,
-      items: itemsByInvoice[inv.vch_no] || [],
-    }));
+    const fullInvoices = invoices.map((inv) => {
+      const invItems = itemsByInvoice[inv.vch_no] || [];
+      return {
+        ...inv,
+        items: invItems,
+        item_count: invItems.length,
+        total_qty: invItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+      };
+    });
 
     res.status(200).json({
       customer: { name: customers[0].name },

@@ -1,5 +1,12 @@
 import { escapeHtml, formatCurrency, formatDate } from '../utils.js';
 
+const DOWNLOAD_ICON = `
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
+
 function matchesSearch(invoice, query) {
   if (!query) return true;
   const q = query.toLowerCase();
@@ -12,20 +19,61 @@ function filterInvoices(invoices, query) {
   return invoices.filter((inv) => matchesSearch(inv, query));
 }
 
-function renderRows(invoices) {
+function groupByYear(invoices) {
+  const groups = new Map();
+  invoices.forEach((inv, index) => {
+    const year = inv.vch_date ? String(inv.vch_date).slice(0, 4) : 'Unknown';
+    if (!groups.has(year)) groups.set(year, []);
+    groups.get(year).push({ inv, index });
+  });
+  return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+function renderCard(inv, index) {
+  return `
+    <div class="invoice-card" data-index="${index}">
+      <div class="card-top">
+        <div class="card-field">
+          <div class="field-label">Invoice no</div>
+          <div class="field-value strong">#${escapeHtml(String(inv.vch_no).trim())}</div>
+        </div>
+        <div class="card-amount">${formatCurrency(inv.total_amount)}</div>
+      </div>
+      <div class="card-bottom">
+        <div class="card-field">
+          <div class="field-label">Date</div>
+          <div class="field-value">${formatDate(inv.vch_date)}</div>
+        </div>
+        <div class="card-field">
+          <div class="field-label">Items</div>
+          <div class="field-value">${(inv.item_count ?? (inv.items || []).length) || '—'}</div>
+        </div>
+        <div class="card-field">
+          <div class="field-label">Total qty</div>
+          <div class="field-value">${inv.total_qty || '—'}</div>
+        </div>
+        <button class="card-download-btn" data-download-index="${index}" title="Download PDF" aria-label="Download PDF">
+          ${DOWNLOAD_ICON}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderList(invoices) {
   if (invoices.length === 0) {
     return `<div class="empty-state">No invoices match your search.</div>`;
   }
-  return invoices
+  const groups = groupByYear(invoices);
+  return groups
     .map(
-      (inv, i) => `
-        <li class="invoice-row" data-index="${i}">
-          <div class="invoice-row-main">
-            <span class="invoice-no">#${escapeHtml(inv.vch_no)}</span>
-            <span class="invoice-date">${formatDate(inv.vch_date)}</span>
+      ([year, group]) => `
+        <div class="year-group">
+          <div class="year-heading">${escapeHtml(year)}</div>
+          <div class="year-cards">
+            ${group.map(({ inv, index }) => renderCard(inv, index)).join('')}
           </div>
-          <span class="invoice-amt">${formatCurrency(inv.total_amount)}</span>
-        </li>
+        </div>
       `
     )
     .join('');
@@ -37,44 +85,69 @@ export function html(state) {
 
   return `
     <div class="screen">
-      <div class="bar-header">
-        <div class="bar-title">My Invoices</div>
-        <button class="bar-action" id="logout-btn">Search another number</button>
+      <div class="list-header">
+        <div class="list-header-text">
+          <div class="list-greeting">Namaste, ${escapeHtml(customer?.name || '')}</div>
+          <div class="list-headline">All your invoices, in one place</div>
+        </div>
+        <button class="logout-link" id="logout-btn">Log out</button>
       </div>
-      <div class="greeting">Hi, <strong>${escapeHtml(customer?.name || '')}</strong></div>
       <div class="search-wrap">
-        <input id="search-input" type="text" placeholder="Search by item name…" value="${escapeHtml(search)}" />
+        <div class="search-input-wrap">
+          <input id="search-input" type="text" placeholder="Search by item name…" value="${escapeHtml(search)}" />
+          <button class="search-clear-btn${search ? ' visible' : ''}" id="search-clear-btn" aria-label="Clear search" title="Clear search">&#10005;</button>
+        </div>
       </div>
-      <ul class="invoice-list" id="invoice-list">
-        ${renderRows(filtered)}
-      </ul>
+      <div class="invoice-list" id="invoice-list">
+        ${renderList(filtered)}
+      </div>
     </div>
   `;
 }
 
-export function mount(root, { state, setState, openInvoice, logout }) {
+export function mount(root, { state, setState, openInvoice, logout, downloadPdf }) {
   const searchInput = root.querySelector('#search-input');
-  const list = root.querySelector('#invoice-list');
+  const clearBtn = root.querySelector('#search-clear-btn');
+  const listEl = root.querySelector('#invoice-list');
   const logoutBtn = root.querySelector('#logout-btn');
 
   let currentFiltered = filterInvoices(state.invoices, state.search);
 
-  function attachRowListeners() {
-    list.querySelectorAll('.invoice-row').forEach((row) => {
-      row.addEventListener('click', () => {
-        const idx = Number(row.getAttribute('data-index'));
+  function attachListListeners() {
+    listEl.querySelectorAll('.invoice-card').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.card-download-btn')) return;
+        const idx = Number(card.getAttribute('data-index'));
         openInvoice(currentFiltered[idx]);
       });
     });
+    listEl.querySelectorAll('.card-download-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.getAttribute('data-download-index'));
+        downloadPdf(currentFiltered[idx]);
+      });
+    });
   }
-  attachRowListeners();
+  attachListListeners();
+
+  function refreshList(query) {
+    currentFiltered = filterInvoices(state.invoices, query);
+    listEl.innerHTML = renderList(currentFiltered);
+    attachListListeners();
+    clearBtn.classList.toggle('visible', Boolean(query));
+  }
 
   searchInput.addEventListener('input', () => {
-    const query = searchInput.value;
-    state.search = query;
-    currentFiltered = filterInvoices(state.invoices, query);
-    list.innerHTML = renderRows(currentFiltered);
-    attachRowListeners();
+    state.search = searchInput.value;
+    refreshList(state.search);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    state.search = '';
+    searchInput.focus();
+    refreshList('');
   });
 
   logoutBtn.addEventListener('click', () => {
