@@ -90,23 +90,28 @@ module.exports = async (req, res) => {
 
     if (invErr) throw invErr;
 
-    const vchCodes = invoices.map((i) => i.vch_code);
+    // Join on vch_no, not vch_code -- vch_code is a per-source-database
+    // autoincrement id that resets every fiscal year and collides across
+    // years (e.g. vch_code 1 exists in the 2024, 2025, AND 2026 source
+    // data, each a different invoice). vch_no is globally unique across
+    // all years and is the only safe join key.
+    const vchNos = invoices.map((i) => i.vch_no);
     const { data: items, error: itemsErr } = await supabase
       .from('invoice_items')
-      .select('vch_code, item_code, item_name, qty, rate, taxable_amount, tax_amount')
-      .in('vch_code', vchCodes);
+      .select('vch_no, item_code, item_name, qty, rate, taxable_amount, tax_amount')
+      .in('vch_no', vchNos);
 
     if (itemsErr) throw itemsErr;
 
     // Group line items under their invoice for a convenient response shape.
     const itemsByInvoice = {};
     for (const item of items) {
-      if (!itemsByInvoice[item.vch_code]) itemsByInvoice[item.vch_code] = [];
-      itemsByInvoice[item.vch_code].push(item);
+      if (!itemsByInvoice[item.vch_no]) itemsByInvoice[item.vch_no] = [];
+      itemsByInvoice[item.vch_no].push(item);
     }
     const fullInvoices = invoices.map((inv) => ({
       ...inv,
-      items: itemsByInvoice[inv.vch_code] || [],
+      items: itemsByInvoice[inv.vch_no] || [],
     }));
 
     res.status(200).json({
