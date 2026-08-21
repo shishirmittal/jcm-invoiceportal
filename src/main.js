@@ -18,6 +18,7 @@ const state = {
   customer: null,
   invoices: [],
   search: '',
+  closedYears: {},
   currentInvoice: null,
 };
 
@@ -137,6 +138,7 @@ const actions = {
     state.customer = null;
     state.invoices = [];
     state.search = '';
+    state.closedYears = {};
     applyRoute(null, 'push');
   },
 

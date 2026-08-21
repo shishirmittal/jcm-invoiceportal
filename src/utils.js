@@ -1,6 +1,12 @@
 export function formatCurrency(value) {
   const n = Number(value) || 0;
-  return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+export function maskMobile(mobile) {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  if (digits.length < 10) return mobile || '';
+  return `+91 ${digits.slice(0, 2)}${'X'.repeat(8)}`;
 }
 
 export function formatDate(value) {
