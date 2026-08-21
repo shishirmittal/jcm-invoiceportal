@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/invoice-pdf.js": {
+      "maxDuration": 60
+    }
+  }
+}

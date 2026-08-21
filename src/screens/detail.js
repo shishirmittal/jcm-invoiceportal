@@ -67,6 +67,8 @@ export function mount(root, { backToList, downloadPdf }) {
     btn.textContent = 'Generating…';
     try {
       await downloadPdf();
+    } catch (err) {
+      alert(err.message || 'Could not generate the PDF. Please try again.');
     } finally {
       btn.disabled = false;
       btn.textContent = original;

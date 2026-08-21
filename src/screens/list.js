@@ -182,6 +182,8 @@ export function mount(root, { state, openInvoice, logout, downloadPdf }) {
         btn.innerHTML = '<span class="spinner"></span>PDF';
         try {
           await downloadPdf(currentFiltered[idx]);
+        } catch (err) {
+          alert(err.message || 'Could not generate the PDF. Please try again.');
         } finally {
           btn.disabled = false;
           btn.innerHTML = original;

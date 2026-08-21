@@ -153,8 +153,33 @@ const actions = {
   async downloadPdf(invoice) {
     const target = invoice || state.currentInvoice;
     if (!target) return;
-    const { generateInvoicePdf } = await import('./pdf.js');
-    generateInvoicePdf(state.customer, target);
+
+    const res = await fetch('/api/invoice-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mobile: state.mobile, last4: state.last4, vch_no: target.vch_no }),
+    });
+
+    if (!res.ok) {
+      let message = 'Could not generate the PDF. Please try again.';
+      try {
+        const data = await res.json();
+        if (data.error) message = data.error;
+      } catch {
+        // non-JSON error response, keep default message
+      }
+      throw new Error(message);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Invoice-${String(target.vch_no).trim()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 };
 
