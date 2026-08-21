@@ -54,7 +54,7 @@ a:hover{color:#1d2a66}
 .btn-primary:hover{background:#25327a}
 
 /* A4 sheet */
-.page{width:210mm;height:297mm;margin:0 auto 20px;background:#fff;padding:13mm;
+.page{width:210mm;height:287mm;margin:0 auto 20px;background:#fff;padding:13mm 13mm 15mm 13mm;
   display:flex;flex-direction:column;overflow:hidden;
   box-shadow:0 1px 3px rgba(20,22,28,.10),0 12px 32px rgba(20,22,28,.07)}
 .grow{flex:1 1 auto;min-height:14px}
@@ -229,9 +229,16 @@ const words = n => {
 /* ── Render ──────────────────────────────────────────────────────────── */
 function render(inv) {
   const lines = inv.items.map((it, i) => {
-    const net = Math.round(it.rate * (1 - (it.discount || 0) / 100) * 100) / 100; // discount is a %
-    const value = it.qty * net;
-    return { ...it, sr: i + 1, net, value };
+    // rate is already the FINAL, discounted per-unit price -- confirmed via
+    // a live invoice comparison (an earlier version of this template treated
+    // rate as a pre-discount list price and reapplied the discount, silently
+    // double-discounting every invoice total). discount is display-only from
+    // here: listPrice is derived backwards from net purely to show a "List
+    // price" column matching Busy's own layout, and never feeds into value.
+    const net = it.rate;
+    const value = Math.round(it.qty * net * 100) / 100;
+    const listPrice = it.discount ? Math.round((net / (1 - it.discount / 100)) * 100) / 100 : net;
+    return { ...it, sr: i + 1, net, value, listPrice };
   });
   const grand = lines.reduce((s, r) => s + r.value, 0);
   const totalQty = lines.reduce((s, r) => s + r.qty, 0);
@@ -321,7 +328,7 @@ function render(inv) {
       <div class="code">${esc(r.hsn)}</div>
       <div class="code">${esc(r.code)}</div>
       <div class="num qty">${r.qty} ${esc(r.unit)}</div>
-      <div class="num">${inr(r.rate)}</div>
+      <div class="num">${inr(r.listPrice)}</div>
       <div class="num ${r.discount ? "" : "nil"}">${r.discount ? r.discount.toFixed(2) + "%" : "—"}</div>
       <div class="num">${r.gst}%</div>
       <div class="num" style="color:var(--ink)">${inr(r.net)}</div>

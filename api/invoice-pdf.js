@@ -67,14 +67,15 @@ function formatDateTimeIST(isoDatetime) {
   return `${dd}-${mm}-${ist.getUTCFullYear()} ${hh}:${mi}`;
 }
 
-// challan_refs is sometimes just the invoice's own vch_no (self-referencing
-// for invoices not actually entered "against challan"), not a real distinct
-// challan number -- only surface it when it's genuinely different.
-function realChallanRef(challanRefs, vchNo) {
-  if (!challanRefs) return '';
-  const trimmed = String(challanRefs).trim();
-  if (!trimmed || trimmed === String(vchNo).trim()) return '';
-  return trimmed;
+// challan_refs is unreliable as of this data: confirmed (via live invoice
+// comparison) to sometimes hold sales order numbers (e.g. "SO/2627/536") or
+// the invoice's own self-reference, not just real challan numbers -- the
+// upstream sync query needs a `WHERE t3.No LIKE 'Challan%'` filter before
+// this column can be trusted. Filtering out self-references client-side
+// isn't enough (it doesn't catch sales-order numbers), so this is disabled
+// entirely -- never surfaced on the PDF -- until that query fix lands.
+function realChallanRef() {
+  return '';
 }
 
 async function launchBrowser() {
@@ -205,9 +206,18 @@ module.exports = async (req, res) => {
       // page.pdf() returns a Uint8Array in this puppeteer-core version, not
       // a Node Buffer -- res.send() only recognizes an actual Buffer as
       // binary and otherwise silently JSON-serializes it byte-by-byte.
+      //
+      // Margins: explicit Puppeteer margins instead of relying on the
+      // template's CSS `@page { margin: 0 }` -- that combination clipped the
+      // footer against the physical page edge on a real rendered PDF.
+      // Puppeteer's `margin` carves usable space OUT of the fixed A4 height,
+      // so the template's .page height is correspondingly reduced (297mm -
+      // 10mm) to match, rather than left at a full 297mm that would then
+      // overflow the printable area by exactly the margin amount.
       const pdfBytes = await page.pdf({
         printBackground: true,
-        preferCSSPageSize: true,
+        format: 'A4',
+        margin: { top: '0mm', bottom: '10mm', left: '0mm', right: '0mm' },
       });
       const pdfBuffer = Buffer.from(pdfBytes);
 
