@@ -10,42 +10,44 @@ export function html(state) {
         <div class="brand-sub">My Invoices</div>
       </div>
       <div class="screen-body">
+        <p class="login-intro">
+          Enter your mobile number and the last 4 digits of any JCM Retails
+          invoice to view your purchase history.
+        </p>
         ${error ? `<div class="error-box">${escapeHtml(error)}</div>` : ''}
-        <form id="login-form" novalidate>
-          <div class="field">
-            <label for="mobile">Mobile Number</label>
-            <input
-              id="mobile"
-              name="mobile"
-              type="tel"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="10"
-              placeholder="10-digit mobile number"
-              autocomplete="tel"
-              value="${escapeHtml(mobile)}"
-            />
-          </div>
-          <div class="field">
-            <label for="last4">Last 4 digits of any invoice number</label>
-            <input
-              id="last4"
-              name="last4"
-              type="tel"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="4"
-              placeholder="e.g. 4709"
-              value="${escapeHtml(last4)}"
-            />
-          </div>
-          <button type="submit" class="btn-primary" ${loading ? 'disabled' : ''}>
-            ${loading ? '<span class="spinner"></span>Looking up…' : 'View My Invoices'}
-          </button>
-        </form>
-        <div class="hint">
-          Enter the mobile number on file and the last 4 digits from any of
-          your JCM Retails invoices to view your purchase history.
+        <div class="login-form-card">
+          <form id="login-form" novalidate>
+            <div class="field">
+              <label for="mobile">Mobile number</label>
+              <input
+                id="mobile"
+                name="mobile"
+                type="tel"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="10"
+                placeholder="10-digit mobile number"
+                autocomplete="tel"
+                value="${escapeHtml(mobile)}"
+              />
+            </div>
+            <div class="field">
+              <label for="last4">Last 4 digits of any invoice number</label>
+              <input
+                id="last4"
+                name="last4"
+                type="tel"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="4"
+                placeholder="e.g. 4709"
+                value="${escapeHtml(last4)}"
+              />
+            </div>
+            <button type="submit" class="btn-primary" ${loading ? 'disabled' : ''}>
+              ${loading ? '<span class="spinner"></span>Looking up…' : 'View My Invoices'}
+            </button>
+          </form>
         </div>
       </div>
     </div>

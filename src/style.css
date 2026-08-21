@@ -206,12 +206,22 @@ html, body {
   line-height: 1.4;
 }
 
-.hint {
-  font-size: 12px;
+.login-intro {
+  font-size: 14px;
   color: var(--text-muted);
   text-align: center;
-  margin-top: 16px;
-  line-height: 1.5;
+  line-height: 1.55;
+  margin: 6px 4px 24px;
+}
+
+.login-form-card {
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 22px 18px 20px;
+}
+
+.login-form-card .field:last-of-type {
+  margin-bottom: 22px;
 }
 
 .spinner {
@@ -261,19 +271,21 @@ html, body {
 }
 
 .logout-link {
-  background: none;
-  border: none;
+  background: transparent;
+  border: 1.5px solid var(--navy);
   color: var(--navy);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 6px 12px;
+  border-radius: 999px;
   white-space: nowrap;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .logout-link:active {
-  opacity: 0.65;
+  background: rgba(15, 31, 61, 0.08);
 }
 
 /* Search */
