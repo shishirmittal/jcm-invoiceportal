@@ -115,7 +115,16 @@ module.exports = async (req, res) => {
       res.status(verified.status).json({ error: verified.error });
       return;
     }
-    const { partyCodes } = verified;
+
+    // Ownership already proven by verifyCustomer's combined (customer_mobile
+    // + party-ledger) invoice list -- just confirm the requested vch_no is
+    // in it before the follow-up query, which no longer needs party_code
+    // scoping.
+    const matchedInvoice = verified.invoices.find((inv) => inv.vch_no === vchNo);
+    if (!matchedInvoice) {
+      res.status(404).json({ error: 'Invoice not found for this account.' });
+      return;
+    }
 
     const { data: invoice, error: invErr } = await supabase
       .from('invoices')
@@ -125,7 +134,6 @@ module.exports = async (req, res) => {
           'station, einvoice_irn, einvoice_ack_no, einvoice_ack_date, last_synced_at, challan_refs'
       )
       .eq('vch_no', vchNo)
-      .in('party_code', partyCodes)
       .limit(1)
       .maybeSingle();
 
