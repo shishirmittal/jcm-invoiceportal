@@ -24,6 +24,20 @@ function normalizeMobile(raw) {
   return digits;
 }
 
+// BillingDet.MobileNo sometimes holds MORE THAN ONE number in a single
+// field (confirmed on a real invoice: "9893780880,9827580880" -- likely
+// two contact numbers given at checkout). A naive normalizeMobile() on the
+// whole field would concatenate both numbers into one garbled string that
+// can never match a clean 10-digit input. This splits on common
+// separators first, normalizes each piece individually, and checks
+// whether ANY of them match.
+function mobileFieldMatches(rawField, cleanMobile) {
+  if (!rawField) return false;
+  return String(rawField)
+    .split(/[,/;|\s]+/)
+    .some((piece) => piece && normalizeMobile(piece) === cleanMobile);
+}
+
 async function verifyCustomer(supabase, mobile, last4) {
   if (!mobile || !last4 || !/^\d{4}$/.test(last4)) {
     return { error: 'Please provide a valid mobile number and 4-digit invoice code.', status: 400 };
@@ -43,8 +57,8 @@ async function verifyCustomer(supabase, mobile, last4) {
     .ilike('customer_mobile', `%${cleanMobile}%`);
   if (mobileErr) throw mobileErr;
 
-  const primaryInvoices = (mobileMatches || []).filter(
-    (inv) => normalizeMobile(inv.customer_mobile) === cleanMobile
+  const primaryInvoices = (mobileMatches || []).filter((inv) =>
+    mobileFieldMatches(inv.customer_mobile, cleanMobile)
   );
 
   // FALLBACK: old party-ledger path, only for invoices customer_mobile
@@ -100,4 +114,4 @@ async function verifyCustomer(supabase, mobile, last4) {
   };
 }
 
-module.exports = { verifyCustomer, normalizeMobile };
+module.exports = { verifyCustomer, normalizeMobile, mobileFieldMatches };
