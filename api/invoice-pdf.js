@@ -5,19 +5,20 @@
 // print-ready page from the design handoff -- this endpoint just injects
 // window.__INVOICE__ before it runs, then captures page.pdf().
 //
-// POST body: { mobile, last4, vch_no }
+// POST body: { mobile, vch_no }
 //
-// Re-verifies mobile+last4 ownership (same check as lookup-invoices.js) AND
-// confirms the requested vch_no belongs to that verified party_code group --
-// this is a separate authenticated request, not a continuation of a prior
-// one, so it re-proves ownership rather than trusting a client-supplied
-// vch_no on its own.
+// Re-verifies invoice ownership by mobile number (same match logic as
+// verify-otp.js -- login is OTP-only now, so there's no last4 code to
+// re-check) AND confirms the requested vch_no is actually in that
+// customer's invoice list -- this is a separate authenticated request, not
+// a continuation of a prior one, so it re-proves ownership rather than
+// trusting a client-supplied vch_no on its own.
 //
 // Environment variables needed: SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
-const { verifyCustomer } = require('./_lib/verifyCustomer');
+const { findInvoicesByMobile } = require('./_lib/verifyCustomer');
 const { stateNameForCode } = require('./_lib/gstStateCodes');
 
 const supabase = createClient(
@@ -102,7 +103,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { mobile, last4, vch_no: vchNo } = req.body || {};
+  const { mobile, vch_no: vchNo } = req.body || {};
 
   if (!vchNo) {
     res.status(400).json({ error: 'Missing invoice number.' });
@@ -110,17 +111,17 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const verified = await verifyCustomer(supabase, mobile, last4);
-    if (verified.error) {
-      res.status(verified.status).json({ error: verified.error });
+    const found = await findInvoicesByMobile(supabase, mobile);
+    if (found.error) {
+      res.status(found.status).json({ error: found.error });
       return;
     }
 
-    // Ownership already proven by verifyCustomer's combined (customer_mobile
-    // + party-ledger) invoice list -- just confirm the requested vch_no is
-    // in it before the follow-up query, which no longer needs party_code
+    // Ownership proven by the mobile number's combined (customer_mobile +
+    // party-ledger) invoice list -- just confirm the requested vch_no is in
+    // it before the follow-up query, which no longer needs party_code
     // scoping.
-    const matchedInvoice = verified.invoices.find((inv) => inv.vch_no === vchNo);
+    const matchedInvoice = found.invoices.find((inv) => inv.vch_no === vchNo);
     if (!matchedInvoice) {
       res.status(404).json({ error: 'Invoice not found for this account.' });
       return;

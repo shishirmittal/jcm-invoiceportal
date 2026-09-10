@@ -1,5 +1,5 @@
 import './style.css';
-import { lookupInvoices } from './api.js';
+import { verifyOtp } from './api.js';
 import * as loginScreen from './screens/login.js';
 import * as listScreen from './screens/list.js';
 import * as detailScreen from './screens/detail.js';
@@ -13,8 +13,8 @@ const state = {
   screen: 'login', // 'login' | 'list' | 'detail'
   loading: false,
   error: null,
+  otpStatus: null,
   mobile: '',
-  last4: '',
   customer: null,
   invoices: [],
   search: '',
@@ -33,7 +33,6 @@ function saveSession() {
       SESSION_KEY,
       JSON.stringify({
         mobile: state.mobile,
-        last4: state.last4,
         customer: state.customer,
         invoices: state.invoices,
         savedAt: Date.now(),
@@ -113,12 +112,21 @@ const actions = {
   state,
   setState,
 
-  async submitLogin(mobile, last4) {
-    setState({ mobile, last4, loading: true, error: null });
+  async completeOtpLogin(mobile, accessToken) {
+    setState({ mobile, loading: true, error: null, otpStatus: null });
     try {
-      const data = await lookupInvoices(mobile, last4);
+      const data = await verifyOtp(mobile, accessToken);
       state.loading = false;
       state.error = null;
+
+      if (data.noHistory) {
+        // Phone ownership is verified, but this number has no purchase
+        // history -- not an error, just nothing to show yet.
+        state.otpStatus = data.message || 'No purchase history found for this number.';
+        render();
+        return;
+      }
+
       state.customer = data.customer;
       state.invoices = data.invoices || [];
       state.search = '';
@@ -133,8 +141,8 @@ const actions = {
     clearSession();
     state.loading = false;
     state.error = null;
+    state.otpStatus = null;
     state.mobile = '';
-    state.last4 = '';
     state.customer = null;
     state.invoices = [];
     state.search = '';
@@ -157,7 +165,7 @@ const actions = {
     const res = await fetch('/api/invoice-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile: state.mobile, last4: state.last4, vch_no: target.vch_no }),
+      body: JSON.stringify({ mobile: state.mobile, vch_no: target.vch_no }),
     });
 
     if (!res.ok) {
@@ -197,7 +205,6 @@ function boot() {
   const session = loadSession();
   if (session) {
     state.mobile = session.mobile;
-    state.last4 = session.last4;
     state.customer = session.customer;
     state.invoices = session.invoices;
   }

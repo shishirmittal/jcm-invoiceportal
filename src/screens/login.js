@@ -1,30 +1,31 @@
 import { escapeHtml, digitsOnly } from '../utils.js';
 
-function isCodeComplete(last4) {
-  return last4.length === 4 && !last4.includes(' ');
-}
+const WIDGET_ID = '36696a706d70343036363138';
+const TOKEN_AUTH = '569853TzLz50GRwH6aa2d872P1';
+const OTP_PROVIDER_SRC = 'https://verify.msg91.com/otp-provider.js';
 
-function renderCodeBoxes(last4, hasError) {
-  return Array.from({ length: 4 }, (_, i) => {
-    const char = (last4[i] || '').trim();
-    const classes = ['code-box', char ? 'filled' : 'empty'];
-    if (hasError) classes.push('has-error');
-    return `<input
-      class="${classes.join(' ')}"
-      data-code-index="${i}"
-      type="tel"
-      inputmode="numeric"
-      pattern="[0-9]*"
-      maxlength="1"
-      autocomplete="off"
-      value="${escapeHtml(char)}"
-    />`;
-  }).join('');
+// MSG91's widget script defines a global `sendOtp` once loaded. This is
+// their own documented loading pattern (inject the script once, then call
+// sendOtp -- either immediately if it's already loaded, or on the injected
+// script's load event otherwise), adapted to run from a JS module instead
+// of an inline <script> tag.
+function loadOtpScript(configuration) {
+  if (typeof window.sendOtp !== 'undefined') {
+    window.sendOtp('', configuration.success, configuration.failure, configuration);
+    return;
+  }
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = OTP_PROVIDER_SRC;
+  script.onload = () => {
+    window.sendOtp('', configuration.success, configuration.failure, configuration);
+  };
+  document.body.appendChild(script);
 }
 
 export function html(state) {
-  const { mobile, last4, loading, error } = state;
-  const valid = mobile.length === 10 && isCodeComplete(last4);
+  const { mobile, loading, error, otpStatus } = state;
+  const valid = mobile.length === 10;
 
   return `
     <div class="screen">
@@ -36,7 +37,7 @@ export function html(state) {
         </div>
       </div>
       <div class="auth-body">
-        <p class="auth-intro">Enter your mobile number and the last 4 digits of any JCM Retails invoice.</p>
+        <p class="auth-intro">Enter your mobile number — we'll text you a one-time code to verify it's you.</p>
 
         <form id="login-form" novalidate>
           <div class="auth-field">
@@ -56,19 +57,12 @@ export function html(state) {
                 value="${escapeHtml(mobile)}"
               />
             </div>
-          </div>
-
-          <div class="auth-field">
-            <label class="auth-field-label">Last 4 digits of any invoice</label>
-            <div class="code-boxes" id="code-boxes">
-              ${renderCodeBoxes(last4, Boolean(error))}
-            </div>
-            <span class="code-hint">e.g. invoice #JCM/2627/34531 → 4531</span>
             ${error ? `<span class="code-error">${escapeHtml(error)}</span>` : ''}
+            ${!error && otpStatus ? `<span class="code-hint">${escapeHtml(otpStatus)}</span>` : ''}
           </div>
 
           <button type="submit" class="btn-primary" id="submit-btn" ${loading || !valid ? 'disabled' : ''}>
-            ${loading ? '<span class="spinner"></span>Looking up…' : 'View my invoices'}
+            ${loading ? '<span class="spinner"></span>Please wait…' : 'Send OTP'}
           </button>
         </form>
 
@@ -81,25 +75,13 @@ export function html(state) {
   `;
 }
 
-export function mount(root, { state, submitLogin }) {
+export function mount(root, { state, setState, completeOtpLogin }) {
   const mobileInput = root.querySelector('#mobile');
   const form = root.querySelector('#login-form');
-  const codeBoxesEl = root.querySelector('#code-boxes');
   const submitBtn = root.querySelector('#submit-btn');
 
-  function codeBoxes() {
-    return [...codeBoxesEl.querySelectorAll('.code-box')];
-  }
-
-  function syncLast4FromBoxes() {
-    // Space-pad so a box's position survives even if boxes were filled out
-    // of order (e.g. tapping box 3 before box 0) -- plain concatenation
-    // would silently shift later digits into the wrong slot on re-render.
-    state.last4 = codeBoxes().map((b) => b.value || ' ').join('');
-  }
-
   function refreshValidity() {
-    submitBtn.disabled = state.mobile.length !== 10 || !isCodeComplete(state.last4) || state.loading;
+    submitBtn.disabled = state.mobile.length !== 10 || state.loading;
   }
 
   mobileInput.addEventListener('input', () => {
@@ -108,56 +90,37 @@ export function mount(root, { state, submitLogin }) {
     refreshValidity();
   });
 
-  codeBoxesEl.addEventListener('input', (e) => {
-    const box = e.target;
-    if (!box.classList.contains('code-box')) return;
-    const index = Number(box.getAttribute('data-code-index'));
-    const digit = digitsOnly(box.value, 1);
-    box.value = digit;
-    box.classList.toggle('filled', Boolean(digit));
-    box.classList.toggle('empty', !digit);
-    box.classList.remove('has-error');
-    syncLast4FromBoxes();
-    if (digit && index < 3) codeBoxes()[index + 1].focus();
-    refreshValidity();
-  });
-
-  codeBoxesEl.addEventListener('keydown', (e) => {
-    const box = e.target;
-    if (!box.classList.contains('code-box')) return;
-    const index = Number(box.getAttribute('data-code-index'));
-    if (e.key === 'Backspace' && !box.value && index > 0) {
-      const prev = codeBoxes()[index - 1];
-      prev.value = '';
-      prev.classList.add('empty');
-      prev.classList.remove('filled');
-      prev.focus();
-      syncLast4FromBoxes();
-      refreshValidity();
-    }
-  });
-
-  codeBoxesEl.addEventListener('paste', (e) => {
-    const box = e.target;
-    if (!box.classList.contains('code-box')) return;
-    e.preventDefault();
-    const pasted = digitsOnly((e.clipboardData || window.clipboardData).getData('text'), 4);
-    if (!pasted) return;
-    const boxes = codeBoxes();
-    boxes.forEach((b, i) => {
-      b.value = pasted[i] || '';
-      b.classList.toggle('filled', Boolean(pasted[i]));
-      b.classList.toggle('empty', !pasted[i]);
-      b.classList.remove('has-error');
-    });
-    syncLast4FromBoxes();
-    boxes[Math.min(pasted.length, 3)].focus();
-    refreshValidity();
-  });
-
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (state.mobile.length !== 10 || !isCodeComplete(state.last4)) return;
-    submitLogin(state.mobile, state.last4);
+    if (state.mobile.length !== 10 || state.loading) return;
+
+    setState({ loading: true, error: null, otpStatus: null });
+
+    const mobile = state.mobile;
+    const configuration = {
+      widgetId: WIDGET_ID,
+      tokenAuth: TOKEN_AUTH,
+      identifier: `91${mobile}`,
+      exposeMethods: false,
+      success: (data) => {
+        // MSG91's widget onSuccess payload carries the access token as
+        // `message` per their current docs; fall back to a couple of other
+        // field names in case this account's widget version differs --
+        // confirm against this log the first time a real OTP is verified.
+        console.log('MSG91 widget success:', data);
+        const accessToken = data && (data.message || data.accessToken || data.token);
+        if (!accessToken) {
+          setState({ loading: false, error: 'Could not complete verification. Please try again.' });
+          return;
+        }
+        completeOtpLogin(mobile, accessToken);
+      },
+      failure: (err) => {
+        console.log('MSG91 widget failure:', err);
+        setState({ loading: false, error: 'OTP verification failed. Please try again.' });
+      },
+    };
+
+    loadOtpScript(configuration);
   });
 }

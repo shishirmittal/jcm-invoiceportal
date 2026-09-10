@@ -14,8 +14,12 @@
 //
 // Environment variables needed (set in Vercel project settings, NOT in
 // the frontend build): SUPABASE_URL, SUPABASE_SERVICE_KEY
+//
+// NOT currently called by the frontend -- login is OTP-only now (see
+// api/verify-otp.js). Left in place as a fallback path rather than deleted.
 const { createClient } = require('@supabase/supabase-js');
 const { verifyCustomer } = require('./_lib/verifyCustomer');
+const { attachInvoiceItems } = require('./_lib/attachInvoiceItems');
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -34,32 +38,7 @@ module.exports = async (req, res) => {
     }
     const { customer, invoices } = verified;
 
-    const vchNos = invoices.map((i) => i.vch_no);
-    const { data: items, error: itemsErr } = await supabase
-      .from('invoice_items')
-      .select('vch_no, item_code, item_name, qty, rate, taxable_amount, tax_amount')
-      .in('vch_no', vchNos);
-    if (itemsErr) throw itemsErr;
-
-    // Group line items under their invoice for a convenient response shape.
-    const itemsByInvoice = {};
-    for (const item of items) {
-      if (!itemsByInvoice[item.vch_no]) itemsByInvoice[item.vch_no] = [];
-      itemsByInvoice[item.vch_no].push(item);
-    }
-    const fullInvoices = invoices.map((inv) => {
-      const invItems = itemsByInvoice[inv.vch_no] || [];
-      return {
-        vch_code: inv.vch_code,
-        vch_no: inv.vch_no,
-        vch_date: inv.vch_date,
-        total_amount: inv.total_amount,
-        taxable_amount: inv.taxable_amount,
-        items: invItems,
-        item_count: invItems.length,
-        total_qty: invItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
-      };
-    });
+    const fullInvoices = await attachInvoiceItems(supabase, invoices);
 
     res.status(200).json({
       customer,

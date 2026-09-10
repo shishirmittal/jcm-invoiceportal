@@ -9,13 +9,10 @@
 // path, for the remaining invoices where customer_mobile is null (older
 // records / edge cases BillingDet didn't cover).
 //
-// Both sets are combined and deduped by vch_no. Verification: at least one
-// invoice in the COMBINED set must have vch_no_last4 matching what the
-// caller entered -- proves they hold a real invoice for this mobile number,
-// not just the number itself. On success, returns the full verified
-// invoice list (not just party codes) plus a display name, since the
-// combined-matching logic lives here and callers shouldn't have to
-// duplicate it.
+// Both sets are combined and deduped by vch_no. This matching logic lives
+// in findInvoicesByMobile() so every caller -- the last4-based flow below
+// and the OTP-based flow (api/verify-otp.js) -- shares one implementation
+// instead of duplicating it.
 function normalizeMobile(raw) {
   let digits = String(raw).replace(/\D/g, '');
   if (digits.length === 12 && digits.startsWith('91')) {
@@ -38,10 +35,12 @@ function mobileFieldMatches(rawField, cleanMobile) {
     .some((piece) => piece && normalizeMobile(piece) === cleanMobile);
 }
 
-async function verifyCustomer(supabase, mobile, last4) {
-  if (!mobile || !last4 || !/^\d{4}$/.test(last4)) {
-    return { error: 'Please provide a valid mobile number and 4-digit invoice code.', status: 400 };
-  }
+// Returns every invoice on file for a mobile number (both match paths,
+// combined + deduped) plus a display name -- with NO proof-of-ownership
+// check beyond the number itself. Callers that need a stronger proof
+// (e.g. the last4 code, or a verified OTP) must check that separately;
+// this function only answers "what invoices exist for this number".
+async function findInvoicesByMobile(supabase, mobile) {
   const cleanMobile = normalizeMobile(mobile);
   if (cleanMobile.length !== 10) {
     return { error: 'Please enter a valid 10-digit mobile number.', status: 400 };
@@ -88,16 +87,6 @@ async function verifyCustomer(supabase, mobile, last4) {
     combinedByVchNo.set(inv.vch_no, inv);
   }
   const combined = [...combinedByVchNo.values()];
-
-  if (combined.length === 0) {
-    return { error: 'No account found for this mobile number.', status: 404 };
-  }
-
-  const ownsInvoice = combined.some((inv) => inv.vch_no_last4 === last4);
-  if (!ownsInvoice) {
-    return { error: "That invoice code doesn't match our records for this mobile number.", status: 401 };
-  }
-
   combined.sort((a, b) => new Date(b.vch_date) - new Date(a.vch_date));
 
   // Display name: prefer the most recent invoice's own customer_name
@@ -114,4 +103,28 @@ async function verifyCustomer(supabase, mobile, last4) {
   };
 }
 
-module.exports = { verifyCustomer, normalizeMobile, mobileFieldMatches };
+// Verification: at least one invoice for this mobile must have
+// vch_no_last4 matching what the caller entered -- proves they hold a
+// real invoice for this mobile number, not just the number itself.
+async function verifyCustomer(supabase, mobile, last4) {
+  if (!mobile || !last4 || !/^\d{4}$/.test(last4)) {
+    return { error: 'Please provide a valid mobile number and 4-digit invoice code.', status: 400 };
+  }
+
+  const found = await findInvoicesByMobile(supabase, mobile);
+  if (found.error) return found;
+  const { customer, invoices } = found;
+
+  if (invoices.length === 0) {
+    return { error: 'No account found for this mobile number.', status: 404 };
+  }
+
+  const ownsInvoice = invoices.some((inv) => inv.vch_no_last4 === last4);
+  if (!ownsInvoice) {
+    return { error: "That invoice code doesn't match our records for this mobile number.", status: 401 };
+  }
+
+  return { customer, invoices };
+}
+
+module.exports = { verifyCustomer, findInvoicesByMobile, normalizeMobile, mobileFieldMatches };
