@@ -4,30 +4,34 @@ const WIDGET_ID = '36696a706d70343036363138';
 const TOKEN_AUTH = '569853TzLz50GRwH6aa2d872P1';
 const OTP_PROVIDER_SRC = 'https://verify.msg91.com/otp-provider.js';
 
-// MSG91's widget script defines a global `sendOtp` once loaded. This is
-// their own documented loading pattern (inject the script once, then call
-// sendOtp -- either immediately if it's already loaded, or on the injected
-// script's load event otherwise), adapted to run from a JS module instead
-// of an inline <script> tag.
+// MSG91's default-UI widget (what we want -- MSG91 renders its own OTP-entry
+// popup, per the product brief) is driven by a global `initSendOTP(config)`
+// that otp-provider.js defines, NOT by calling `sendOtp()` directly --
+// `sendOtp`/`verifyOtp`/`retryOtp` are only exposed on window when
+// `exposeMethods: true` is set, which is for a fully custom UI that drives
+// those calls itself. Calling `sendOtp()` while exposeMethods is off (or
+// unset) leaves it undefined -- confirmed via a real console trace where
+// `initSendOTP(configuration)` is what MSG91's own docs wire up as the
+// script tag's onload handler.
 //
-// Every failure mode here (script blocked by an ad-blocker/network error,
-// or sendOtp throwing synchronously) is routed through configuration.failure
-// instead of being left to silently hang -- a previous version had no
+// Every failure mode here (script blocked by an ad-blocker/network error, or
+// initSendOTP throwing synchronously) is routed through configuration.failure
+// instead of being left to silently hang -- an earlier version had no
 // onerror/try-catch, so those failures left the "Please wait" button stuck
 // forever with nothing in the console to explain why.
-function callSendOtp(configuration) {
+function callInitSendOTP(configuration) {
   try {
-    console.log('MSG91: calling sendOtp with identifier', configuration.identifier);
-    window.sendOtp('', configuration.success, configuration.failure, configuration);
+    console.log('MSG91: calling initSendOTP with identifier', configuration.identifier);
+    window.initSendOTP(configuration);
   } catch (err) {
-    console.error('MSG91: sendOtp threw synchronously', err);
+    console.error('MSG91: initSendOTP threw synchronously', err);
     configuration.failure(err);
   }
 }
 
-function loadOtpScript(configuration) {
-  if (typeof window.sendOtp !== 'undefined') {
-    callSendOtp(configuration);
+function loadOtpWidget(configuration) {
+  if (typeof window.initSendOTP === 'function') {
+    callInitSendOTP(configuration);
     return;
   }
   console.log('MSG91: loading otp-provider.js');
@@ -35,12 +39,12 @@ function loadOtpScript(configuration) {
   script.type = 'text/javascript';
   script.src = OTP_PROVIDER_SRC;
   script.onload = () => {
-    console.log('MSG91: otp-provider.js loaded, sendOtp is', typeof window.sendOtp);
-    if (typeof window.sendOtp === 'undefined') {
-      configuration.failure(new Error('otp-provider.js loaded but did not define sendOtp'));
+    console.log('MSG91: otp-provider.js loaded, initSendOTP is', typeof window.initSendOTP);
+    if (typeof window.initSendOTP !== 'function') {
+      configuration.failure(new Error('otp-provider.js loaded but did not define initSendOTP'));
       return;
     }
-    callSendOtp(configuration);
+    callInitSendOTP(configuration);
   };
   script.onerror = (err) => {
     console.error('MSG91: failed to load otp-provider.js', err);
@@ -127,7 +131,6 @@ export function mount(root, { state, setState, completeOtpLogin }) {
       widgetId: WIDGET_ID,
       tokenAuth: TOKEN_AUTH,
       identifier: `91${mobile}`,
-      exposeMethods: false,
       success: (data) => {
         // MSG91's widget onSuccess payload carries the access token as
         // `message` per their current docs; fall back to a couple of other
@@ -147,6 +150,6 @@ export function mount(root, { state, setState, completeOtpLogin }) {
       },
     };
 
-    loadOtpScript(configuration);
+    loadOtpWidget(configuration);
   });
 }
