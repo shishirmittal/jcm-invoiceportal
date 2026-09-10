@@ -9,16 +9,42 @@ const OTP_PROVIDER_SRC = 'https://verify.msg91.com/otp-provider.js';
 // sendOtp -- either immediately if it's already loaded, or on the injected
 // script's load event otherwise), adapted to run from a JS module instead
 // of an inline <script> tag.
+//
+// Every failure mode here (script blocked by an ad-blocker/network error,
+// or sendOtp throwing synchronously) is routed through configuration.failure
+// instead of being left to silently hang -- a previous version had no
+// onerror/try-catch, so those failures left the "Please wait" button stuck
+// forever with nothing in the console to explain why.
+function callSendOtp(configuration) {
+  try {
+    console.log('MSG91: calling sendOtp with identifier', configuration.identifier);
+    window.sendOtp('', configuration.success, configuration.failure, configuration);
+  } catch (err) {
+    console.error('MSG91: sendOtp threw synchronously', err);
+    configuration.failure(err);
+  }
+}
+
 function loadOtpScript(configuration) {
   if (typeof window.sendOtp !== 'undefined') {
-    window.sendOtp('', configuration.success, configuration.failure, configuration);
+    callSendOtp(configuration);
     return;
   }
+  console.log('MSG91: loading otp-provider.js');
   const script = document.createElement('script');
   script.type = 'text/javascript';
   script.src = OTP_PROVIDER_SRC;
   script.onload = () => {
-    window.sendOtp('', configuration.success, configuration.failure, configuration);
+    console.log('MSG91: otp-provider.js loaded, sendOtp is', typeof window.sendOtp);
+    if (typeof window.sendOtp === 'undefined') {
+      configuration.failure(new Error('otp-provider.js loaded but did not define sendOtp'));
+      return;
+    }
+    callSendOtp(configuration);
+  };
+  script.onerror = (err) => {
+    console.error('MSG91: failed to load otp-provider.js', err);
+    configuration.failure(err);
   };
   document.body.appendChild(script);
 }
