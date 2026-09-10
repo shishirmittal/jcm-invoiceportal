@@ -4,12 +4,8 @@ const WIDGET_ID = '36696a706d70343036363138';
 const TOKEN_AUTH = '569853TzLz50GRwH6aa2d872P1';
 const OTP_PROVIDER_SRC = 'https://verify.msg91.com/otp-provider.js';
 
-// MSG91's widget OTP length is configured per-widget on their dashboard and
-// isn't exposed anywhere in the sendOtp/verifyOtp response we can read --
-// this renders up to 6 boxes (a common default) but verifying only requires
-// 4+ digits typed contiguously from the first box, so a 4-digit widget still
-// works. Confirm against a live test and trim this down if it's shorter.
-const OTP_LENGTH = 6;
+// Confirmed 4-digit OTP for this widget (checked in MSG91's dashboard).
+const OTP_LENGTH = 4;
 const RESEND_COOLDOWN_SECONDS = 30;
 
 let widgetInitialized = false;
