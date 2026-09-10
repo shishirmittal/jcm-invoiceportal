@@ -329,6 +329,28 @@ html, body {
   margin-top: -2px;
 }
 
+.otp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-hover);
+  cursor: pointer;
+}
+
+.link-btn:disabled {
+  color: var(--text-meta);
+  cursor: default;
+}
+
 .help-card {
   margin-top: auto;
   display: flex;

@@ -14,6 +14,8 @@ const state = {
   loading: false,
   error: null,
   otpStatus: null,
+  otpSent: false,
+  otp: '',
   mobile: '',
   customer: null,
   invoices: [],
@@ -142,6 +144,8 @@ const actions = {
     state.loading = false;
     state.error = null;
     state.otpStatus = null;
+    state.otpSent = false;
+    state.otp = '';
     state.mobile = '';
     state.customer = null;
     state.invoices = [];
