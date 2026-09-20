@@ -221,6 +221,14 @@ html, body {
   gap: 22px;
 }
 
+/* Fields + submit button live inside a <form>, so they need the same
+   spacing .auth-body gives its direct children. */
+.auth-body form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
 .auth-intro {
   margin: 0;
   font-size: 14px;

@@ -1,8 +1,8 @@
-export async function lookupInvoices(mobile, last4) {
-  const res = await fetch('/api/lookup-invoices', {
+async function postJson(path, body) {
+  const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mobile, last4 }),
+    body: JSON.stringify(body),
   });
 
   let data = {};
@@ -19,23 +19,20 @@ export async function lookupInvoices(mobile, last4) {
   return data;
 }
 
-export async function verifyOtp(mobile, accessToken) {
-  const res = await fetch('/api/verify-otp', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mobile, accessToken }),
-  });
+export function lookupInvoices(mobile, last4) {
+  return postJson('/api/lookup-invoices', { mobile, last4 });
+}
 
-  let data = {};
-  try {
-    data = await res.json();
-  } catch {
-    // non-JSON response, fall through to generic error below
+// Resolves to the signed ticket /api/verify-otp needs back -- opaque to the
+// frontend, it just holds onto it between the two calls.
+export async function sendOtp(mobile) {
+  const data = await postJson('/api/send-otp', { mobile });
+  if (!data.ticket) {
+    throw new Error("Couldn't send OTP, please try again.");
   }
+  return data.ticket;
+}
 
-  if (!res.ok) {
-    throw new Error(data.error || 'Something went wrong. Please try again in a moment.');
-  }
-
-  return data;
+export function verifyOtp(mobile, ticket, otp) {
+  return postJson('/api/verify-otp', { mobile, ticket, otp });
 }

@@ -1,20 +1,29 @@
 // api/verify-otp.js
 //
-// Vercel Serverless Function. Verifies an MSG91 widget access token
-// server-side, then looks up invoices for the verified mobile number
-// directly -- no last4 code needed, since a completed OTP flow already
-// proves phone ownership more strongly than a 4-digit code that could be
-// read off a discarded receipt.
+// POST body: { mobile: "9876543210", ticket: "<from send-otp>", otp: "123456" }
 //
-// POST body: { accessToken, mobile }
-// `mobile` is the number the user typed into the login form before the
-// widget sent the OTP; it's cross-checked against the number MSG91 itself
-// verified, as a sanity check against a stale or mismatched token.
+// Verifies the OTP with 2Factor.in server-side, and if correct, looks up
+// this mobile number's invoices directly (via findInvoicesByMobile --
+// shared with the last4-based login in verifyCustomer.js). No last4 check
+// here: a correctly verified OTP is already stronger proof of phone
+// ownership than a 4-digit invoice code ever was.
 //
-// Environment variables needed: MSG91_AUTH_KEY (secret, server-side only --
-// distinct from the widget's public tokenAuth used in the frontend),
+// The client never sends a raw 2Factor session id. It sends back the
+// signed ticket send-otp.js gave it, and the session id is recovered from
+// that ticket ONLY if it was issued for this exact mobile number and
+// hasn't expired -- see _lib/otpSessionToken.js. Without that binding,
+// 2Factor's "OTP Matched" says nothing about WHICH phone was verified, and
+// a caller could verify their own phone then claim someone else's number.
+//
+// If the mobile has zero matching invoices, that's NOT an error -- OTP
+// proves phone ownership, not that they're an existing JCM Retails
+// customer. Returns a clear empty-result response instead.
+//
+// Environment variables needed: TWOFACTOR_API_KEY, OTP_SESSION_SECRET,
 // SUPABASE_URL, SUPABASE_SERVICE_KEY
 const { createClient } = require('@supabase/supabase-js');
+const { verifyOtp } = require('./_lib/twoFactor');
+const { verifyTicket } = require('./_lib/otpSessionToken');
 const { findInvoicesByMobile, normalizeMobile } = require('./_lib/verifyCustomer');
 const { attachInvoiceItems } = require('./_lib/attachInvoiceItems');
 
@@ -29,49 +38,30 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { accessToken, mobile } = req.body || {};
-  if (!accessToken || !mobile) {
-    res.status(400).json({ error: 'Missing verification token or mobile number.' });
+  const { mobile, ticket, otp } = req.body || {};
+  if (!mobile || !ticket || !otp) {
+    res.status(400).json({ error: 'Missing mobile number, verification ticket, or code.' });
     return;
   }
 
   try {
-    const msgRes = await fetch('https://control.msg91.com/api/v5/widget/verifyAccessToken', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        authkey: process.env.MSG91_AUTH_KEY,
-        'access-token': accessToken,
-      }),
-    });
-    const result = await msgRes.json();
+    const cleanMobile = normalizeMobile(mobile);
 
-    // Keep this log for the first several real tests -- MSG91's own docs
-    // snippet didn't show a confirmed success response body. Check Vercel's
-    // function logs after a real OTP test and adjust the field(s) read
-    // below (result.type / result.message) if reality differs.
-    console.log('MSG91 verify response:', JSON.stringify(result));
-
-    if (!result || result.type !== 'success') {
-      res.status(401).json({ error: 'OTP verification failed. Please try again.' });
+    // Must be normalized the same way send-otp.js normalized it before
+    // signing -- verifyTicket does an exact string comparison.
+    const sessionId = verifyTicket(String(ticket), cleanMobile);
+    if (!sessionId) {
+      res.status(401).json({ error: 'This code has expired or is no longer valid. Please request a new one.' });
       return;
     }
 
-    // MSG91's verifyAccessToken response carries the verified number in
-    // `message` on success per their widget docs; a couple of other
-    // plausible field names are checked as a fallback in case this
-    // account's widget version differs -- confirm against the logged
-    // response above and simplify once that's certain.
-    const verifiedRaw = result.message || result.data?.mobile || result.mobile;
-    const verifiedMobile = normalizeMobile(verifiedRaw || '');
-    const submittedMobile = normalizeMobile(mobile);
-
-    if (verifiedMobile.length !== 10 || verifiedMobile !== submittedMobile) {
-      res.status(401).json({ error: 'Mobile number verification failed. Please try again.' });
+    const isValid = await verifyOtp(sessionId, String(otp));
+    if (!isValid) {
+      res.status(401).json({ error: 'Incorrect code. Please try again.' });
       return;
     }
 
-    const found = await findInvoicesByMobile(supabase, verifiedMobile);
+    const found = await findInvoicesByMobile(supabase, cleanMobile);
     if (found.error) {
       res.status(found.status).json({ error: found.error });
       return;

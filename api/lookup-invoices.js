@@ -15,8 +15,9 @@
 // Environment variables needed (set in Vercel project settings, NOT in
 // the frontend build): SUPABASE_URL, SUPABASE_SERVICE_KEY
 //
-// NOT currently called by the frontend -- login is OTP-only now (see
-// api/verify-otp.js). Left in place as a fallback path rather than deleted.
+// Backs the "last 4 digits of an invoice" login option, offered alongside
+// OTP login (api/send-otp.js + api/verify-otp.js) so customers still have a
+// way in if SMS delivery is down.
 const { createClient } = require('@supabase/supabase-js');
 const { verifyCustomer } = require('./_lib/verifyCustomer');
 const { attachInvoiceItems } = require('./_lib/attachInvoiceItems');

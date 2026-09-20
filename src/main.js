@@ -1,5 +1,5 @@
 import './style.css';
-import { verifyOtp } from './api.js';
+import { lookupInvoices, verifyOtp } from './api.js';
 import * as loginScreen from './screens/login.js';
 import * as listScreen from './screens/list.js';
 import * as detailScreen from './screens/detail.js';
@@ -14,8 +14,11 @@ const state = {
   loading: false,
   error: null,
   otpStatus: null,
+  loginMode: 'otp', // 'otp' | 'last4'
   otpSent: false,
   otp: '',
+  ticket: null, // signed ticket from /api/send-otp, handed back at verify time
+  last4: '',
   mobile: '',
   customer: null,
   invoices: [],
@@ -110,30 +113,56 @@ function applyRoute(routeState, mode) {
   render();
 }
 
+// Shared tail of both login paths (OTP and mobile+last4).
+function finishLogin(data) {
+  state.customer = data.customer;
+  state.invoices = data.invoices || [];
+  state.search = '';
+  state.otpSent = false;
+  state.otp = '';
+  state.ticket = null;
+  state.last4 = '';
+  saveSession();
+  applyRoute(null, 'push');
+}
+
 const actions = {
   state,
   setState,
 
-  async completeOtpLogin(mobile, accessToken) {
+  async completeOtpLogin(mobile, ticket, otp) {
     setState({ mobile, loading: true, error: null, otpStatus: null });
     try {
-      const data = await verifyOtp(mobile, accessToken);
+      const data = await verifyOtp(mobile, ticket, otp);
       state.loading = false;
       state.error = null;
 
       if (data.noHistory) {
         // Phone ownership is verified, but this number has no purchase
-        // history -- not an error, just nothing to show yet.
+        // history -- not an error, just nothing to show yet. Drop back to
+        // the mobile step, which is the one that renders otpStatus (and
+        // the ticket is spent now anyway).
         state.otpStatus = data.message || 'No purchase history found for this number.';
+        state.otpSent = false;
+        state.otp = '';
+        state.ticket = null;
         render();
         return;
       }
 
-      state.customer = data.customer;
-      state.invoices = data.invoices || [];
-      state.search = '';
-      saveSession();
-      applyRoute(null, 'push');
+      finishLogin(data);
+    } catch (err) {
+      setState({ loading: false, error: err.message });
+    }
+  },
+
+  async submitLogin(mobile, last4) {
+    setState({ mobile, last4, loading: true, error: null, otpStatus: null });
+    try {
+      const data = await lookupInvoices(mobile, last4);
+      state.loading = false;
+      state.error = null;
+      finishLogin(data);
     } catch (err) {
       setState({ loading: false, error: err.message });
     }
@@ -144,8 +173,11 @@ const actions = {
     state.loading = false;
     state.error = null;
     state.otpStatus = null;
+    state.loginMode = 'otp';
     state.otpSent = false;
     state.otp = '';
+    state.ticket = null;
+    state.last4 = '';
     state.mobile = '';
     state.customer = null;
     state.invoices = [];
