@@ -10,9 +10,8 @@
 // records / edge cases BillingDet didn't cover).
 //
 // Both sets are combined and deduped by vch_no. This matching logic lives
-// in findInvoicesByMobile() so every caller -- the last4-based flow below
-// and the OTP-based flow (api/verify-otp.js) -- shares one implementation
-// instead of duplicating it.
+// in findInvoicesByMobile() so every caller (verify-otp.js, invoice-pdf.js)
+// shares one implementation.
 function normalizeMobile(raw) {
   let digits = String(raw).replace(/\D/g, '');
   if (digits.length === 12 && digits.startsWith('91')) {
@@ -38,7 +37,7 @@ function mobileFieldMatches(rawField, cleanMobile) {
 // Returns every invoice on file for a mobile number (both match paths,
 // combined + deduped) plus a display name -- with NO proof-of-ownership
 // check beyond the number itself. Callers that need a stronger proof
-// (e.g. the last4 code, or a verified OTP) must check that separately;
+// (a verified OTP) must check that separately;
 // this function only answers "what invoices exist for this number".
 async function findInvoicesByMobile(supabase, mobile) {
   const cleanMobile = normalizeMobile(mobile);
@@ -103,28 +102,4 @@ async function findInvoicesByMobile(supabase, mobile) {
   };
 }
 
-// Verification: at least one invoice for this mobile must have
-// vch_no_last4 matching what the caller entered -- proves they hold a
-// real invoice for this mobile number, not just the number itself.
-async function verifyCustomer(supabase, mobile, last4) {
-  if (!mobile || !last4 || !/^\d{4}$/.test(last4)) {
-    return { error: 'Please provide a valid mobile number and 4-digit invoice code.', status: 400 };
-  }
-
-  const found = await findInvoicesByMobile(supabase, mobile);
-  if (found.error) return found;
-  const { customer, invoices } = found;
-
-  if (invoices.length === 0) {
-    return { error: 'No account found for this mobile number.', status: 404 };
-  }
-
-  const ownsInvoice = invoices.some((inv) => inv.vch_no_last4 === last4);
-  if (!ownsInvoice) {
-    return { error: "That invoice code doesn't match our records for this mobile number.", status: 401 };
-  }
-
-  return { customer, invoices };
-}
-
-module.exports = { verifyCustomer, findInvoicesByMobile, normalizeMobile, mobileFieldMatches };
+module.exports = { findInvoicesByMobile, normalizeMobile, mobileFieldMatches };

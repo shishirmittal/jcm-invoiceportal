@@ -1,4 +1,4 @@
-// Shared by lookup-invoices.js and verify-otp.js: given an already-verified
+// Used by verify-otp.js: given an already-verified
 // invoice list, fetches invoice_items and returns the "full invoice" shape
 // both endpoints send to the frontend (items grouped under their invoice,
 // plus item_count/total_qty summaries the list screen uses).

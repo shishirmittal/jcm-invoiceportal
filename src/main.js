@@ -1,5 +1,5 @@
 import './style.css';
-import { lookupInvoices, verifyOtp } from './api.js';
+import { verifyOtp } from './api.js';
 import * as loginScreen from './screens/login.js';
 import * as listScreen from './screens/list.js';
 import * as detailScreen from './screens/detail.js';
@@ -14,10 +14,8 @@ const state = {
   loading: false,
   error: null,
   otpStatus: null,
-  loginMode: 'otp', // 'otp' | 'last4'
   otpSent: false,
   otp: '',
-  last4: '',
   mobile: '',
   customer: null,
   invoices: [],
@@ -112,14 +110,13 @@ function applyRoute(routeState, mode) {
   render();
 }
 
-// Shared tail of both login paths (OTP and mobile+last4).
+// Runs after a successful OTP login.
 function finishLogin(data) {
   state.customer = data.customer;
   state.invoices = data.invoices || [];
   state.search = '';
   state.otpSent = false;
   state.otp = '';
-  state.last4 = '';
   saveSession();
   applyRoute(null, 'push');
 }
@@ -153,27 +150,13 @@ const actions = {
     }
   },
 
-  async submitLogin(mobile, last4) {
-    setState({ mobile, last4, loading: true, error: null, otpStatus: null });
-    try {
-      const data = await lookupInvoices(mobile, last4);
-      state.loading = false;
-      state.error = null;
-      finishLogin(data);
-    } catch (err) {
-      setState({ loading: false, error: err.message });
-    }
-  },
-
   logout() {
     clearSession();
     state.loading = false;
     state.error = null;
     state.otpStatus = null;
-    state.loginMode = 'otp';
     state.otpSent = false;
     state.otp = '';
-      state.last4 = '';
     state.mobile = '';
     state.customer = null;
     state.invoices = [];

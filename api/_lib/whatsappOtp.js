@@ -27,7 +27,9 @@ const CODE_PATTERN = /^\d{4,8}$/;
 // Meta rejects the message.
 async function sendOtpMessage(mobile, code) {
   if (!TOKEN || !PHONE_NUMBER_ID) {
-    throw new Error('WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID are not set in environment variables.');
+    const err = new Error('WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID are not set in environment variables.');
+    err.stage = 'CFG';
+    throw err;
   }
   if (!PHONE_PATTERN.test(String(mobile))) {
     throw new Error('sendOtpMessage requires a normalized 10-digit mobile number.');
@@ -80,6 +82,8 @@ async function sendOtpMessage(mobile, code) {
     console.error('WhatsApp OTP send failed:', response.status, JSON.stringify(data.error || data));
     const err = new Error((data.error && data.error.message) || 'WhatsApp send failed');
     err.raw = data;
+    err.stage = 'WA';
+    err.code = (data.error && data.error.code) || response.status;
     throw err;
   }
 

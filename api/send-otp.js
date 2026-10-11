@@ -42,10 +42,16 @@ module.exports = async (req, res) => {
     await sendOtpMessage(cleanMobile, issued.code);
     res.status(200).json({ sent: true });
   } catch (err) {
-    console.error('send-otp error:', err.message);
+    // A short reference like "WA-132001" (Meta's error code) or "DB" is
+    // shown to the customer so support can tell what failed. It never
+    // contains the code or any secret.
+    const ref = err.stage
+      ? `${err.stage}${err.code ? '-' + err.code : ''}`
+      : /otp_codes|OTP_SESSION_SECRET/.test(err.message) ? 'DB' : 'ERR';
+    console.error(`send-otp error [${ref}]:`, err.message);
     if (issued && issued.id) {
       await discardOtp(supabase, issued.id).catch(() => {});
     }
-    res.status(500).json({ error: "Couldn't send the code on WhatsApp. Please check the number and try again." });
+    res.status(500).json({ error: `Couldn't send the code on WhatsApp. Please try again. (ref ${ref})` });
   }
 };

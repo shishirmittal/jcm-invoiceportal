@@ -6,8 +6,7 @@
 // _lib/otpStore.js: 10-minute expiry, single use, max 5 wrong guesses).
 // The stored code is tied to the mobile number it was sent to, so a
 // verified code proves ownership of exactly that number. If correct, looks
-// up this number's invoices (findInvoicesByMobile, shared with the last4
-// login).
+// up this number's invoices (findInvoicesByMobile).
 //
 // Zero matching invoices is NOT an error -- it returns noHistory: true.
 //

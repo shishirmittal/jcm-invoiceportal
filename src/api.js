@@ -19,10 +19,6 @@ async function postJson(path, body) {
   return data;
 }
 
-export function lookupInvoices(mobile, last4) {
-  return postJson('/api/lookup-invoices', { mobile, last4 });
-}
-
 // Asks the server to send a login code to this number on WhatsApp.
 export async function sendOtp(mobile) {
   const data = await postJson('/api/send-otp', { mobile });
