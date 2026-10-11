@@ -1,11 +1,8 @@
 import { escapeHtml, digitsOnly, maskMobile } from '../utils.js';
 import { sendOtp as requestOtp } from '../api.js';
 
-// 2Factor.in's AUTOGEN endpoint (what api/_lib/twoFactor.js calls) is
-// documented as sending a 6-digit code (AUTOGEN3 is their 4-digit
-// variant). NOT yet confirmed against a real SMS -- on the first real
-// test, count the digits in the message actually received and change this
-// if it differs.
+// Codes are generated server-side (api/_lib/otpStore.js) and are always 6
+// digits; they arrive on WhatsApp.
 const OTP_LENGTH = 6;
 const LAST4_LENGTH = 4;
 const RESEND_COOLDOWN_SECONDS = 30;
@@ -15,7 +12,7 @@ let cooldownIntervalId = null;
 // Bumped on every send AND whenever the user backs out of the OTP flow
 // (change number / switch login option), so a send that resolves after
 // they've moved on is ignored instead of yanking them back to code entry
-// with a ticket for a number they're no longer verifying.
+// for a number they're no longer verifying.
 let sendSeq = 0;
 
 // Code-box values are space-padded to the full length (see wireCodeBoxes),
@@ -110,7 +107,7 @@ function last4Html(state) {
           </button>
         </form>
 
-        <button type="button" class="link-btn" id="switch-mode-btn">Get a one-time code by SMS instead</button>
+        <button type="button" class="link-btn" id="switch-mode-btn">Get a one-time code on WhatsApp instead</button>
 
         ${HELP_CARD}
       </div>
@@ -130,13 +127,13 @@ function otpMobileHtml(state) {
     <div class="screen">
       ${AUTH_HEADER}
       <div class="auth-body">
-        <p class="auth-intro">Enter your mobile number — we'll text you a one-time code to verify it's you.</p>
+        <p class="auth-intro">Enter your mobile number — we'll send a one-time code to your WhatsApp to verify it's you.</p>
 
         <form id="mobile-form" novalidate>
           ${mobileField(mobile, messages)}
 
           <button type="submit" class="btn-primary" id="send-otp-btn" ${loading || !mobileValid ? 'disabled' : ''}>
-            ${loading ? '<span class="spinner"></span>Sending…' : 'Send OTP'}
+            ${loading ? '<span class="spinner"></span>Sending…' : 'Send code on WhatsApp'}
           </button>
         </form>
 
@@ -156,7 +153,7 @@ function otpEntryHtml(state) {
     <div class="screen">
       ${AUTH_HEADER}
       <div class="auth-body">
-        <p class="auth-intro">Enter the code we texted to +91 ${escapeHtml(maskMobile(mobile).replace('+91 ', ''))}.</p>
+        <p class="auth-intro">Enter the code we sent on WhatsApp to +91 ${escapeHtml(maskMobile(mobile).replace('+91 ', ''))}.</p>
 
         <form id="otp-form" novalidate>
           <div class="auth-field">
@@ -267,7 +264,7 @@ export function mount(root, { state, setState, completeOtpLogin, submitLogin }) 
     });
   }
 
-  // Mobile + last4 login (no SMS involved)
+  // Mobile + last4 login (no code involved)
   if (state.loginMode === 'last4') {
     const form = root.querySelector('#last4-form');
     const submitBtn = root.querySelector('#last4-submit-btn');
@@ -295,9 +292,9 @@ export function mount(root, { state, setState, completeOtpLogin, submitLogin }) 
     setState({ loading: true, error: null, otpStatus: null });
     const seq = ++sendSeq;
     requestOtp(state.mobile)
-      .then((ticket) => {
+      .then(() => {
         if (seq !== sendSeq) return;
-        setState({ loading: false, error: null, otpSent: true, otp: '', ticket });
+        setState({ loading: false, error: null, otpSent: true, otp: '' });
       })
       .catch((err) => {
         if (seq !== sendSeq) return;
@@ -339,12 +336,12 @@ export function mount(root, { state, setState, completeOtpLogin, submitLogin }) 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!isCodeComplete(state.otp, OTP_LENGTH) || state.loading) return;
-    completeOtpLogin(state.mobile, state.ticket, state.otp);
+    completeOtpLogin(state.mobile, state.otp);
   });
 
   changeNumberBtn.addEventListener('click', () => {
     sendSeq += 1;
-    setState({ otpSent: false, otp: '', ticket: null, error: null, otpStatus: null, loading: false });
+    setState({ otpSent: false, otp: '', error: null, otpStatus: null, loading: false });
   });
 
   resendBtn.addEventListener('click', () => {

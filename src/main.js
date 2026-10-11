@@ -17,7 +17,6 @@ const state = {
   loginMode: 'otp', // 'otp' | 'last4'
   otpSent: false,
   otp: '',
-  ticket: null, // signed ticket from /api/send-otp, handed back at verify time
   last4: '',
   mobile: '',
   customer: null,
@@ -120,7 +119,6 @@ function finishLogin(data) {
   state.search = '';
   state.otpSent = false;
   state.otp = '';
-  state.ticket = null;
   state.last4 = '';
   saveSession();
   applyRoute(null, 'push');
@@ -130,23 +128,22 @@ const actions = {
   state,
   setState,
 
-  async completeOtpLogin(mobile, ticket, otp) {
+  async completeOtpLogin(mobile, otp) {
     setState({ mobile, loading: true, error: null, otpStatus: null });
     try {
-      const data = await verifyOtp(mobile, ticket, otp);
+      const data = await verifyOtp(mobile, otp);
       state.loading = false;
       state.error = null;
 
       if (data.noHistory) {
         // Phone ownership is verified, but this number has no purchase
         // history -- not an error, just nothing to show yet. Drop back to
-        // the mobile step, which is the one that renders otpStatus (and
-        // the ticket is spent now anyway).
+        // the mobile step, which is the one that renders otpStatus (the
+        // code is spent now anyway).
         state.otpStatus = data.message || 'No purchase history found for this number.';
         state.otpSent = false;
         state.otp = '';
-        state.ticket = null;
-        render();
+              render();
         return;
       }
 
@@ -176,8 +173,7 @@ const actions = {
     state.loginMode = 'otp';
     state.otpSent = false;
     state.otp = '';
-    state.ticket = null;
-    state.last4 = '';
+      state.last4 = '';
     state.mobile = '';
     state.customer = null;
     state.invoices = [];

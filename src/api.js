@@ -23,16 +23,14 @@ export function lookupInvoices(mobile, last4) {
   return postJson('/api/lookup-invoices', { mobile, last4 });
 }
 
-// Resolves to the signed ticket /api/verify-otp needs back -- opaque to the
-// frontend, it just holds onto it between the two calls.
+// Asks the server to send a login code to this number on WhatsApp.
 export async function sendOtp(mobile) {
   const data = await postJson('/api/send-otp', { mobile });
-  if (!data.ticket) {
-    throw new Error("Couldn't send OTP, please try again.");
+  if (!data.sent) {
+    throw new Error("Couldn't send the code, please try again.");
   }
-  return data.ticket;
 }
 
-export function verifyOtp(mobile, ticket, otp) {
-  return postJson('/api/verify-otp', { mobile, ticket, otp });
+export function verifyOtp(mobile, otp) {
+  return postJson('/api/verify-otp', { mobile, otp });
 }

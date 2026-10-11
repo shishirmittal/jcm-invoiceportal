@@ -1,29 +1,20 @@
 // api/verify-otp.js
 //
-// POST body: { mobile: "9876543210", ticket: "<from send-otp>", otp: "123456" }
+// POST body: { mobile: "9876543210", otp: "123456" }
 //
-// Verifies the OTP with 2Factor.in server-side, and if correct, looks up
-// this mobile number's invoices directly (via findInvoicesByMobile --
-// shared with the last4-based login in verifyCustomer.js). No last4 check
-// here: a correctly verified OTP is already stronger proof of phone
-// ownership than a 4-digit invoice code ever was.
+// Checks the code against the hash stored by send-otp.js (see
+// _lib/otpStore.js: 10-minute expiry, single use, max 5 wrong guesses).
+// The stored code is tied to the mobile number it was sent to, so a
+// verified code proves ownership of exactly that number. If correct, looks
+// up this number's invoices (findInvoicesByMobile, shared with the last4
+// login).
 //
-// The client never sends a raw 2Factor session id. It sends back the
-// signed ticket send-otp.js gave it, and the session id is recovered from
-// that ticket ONLY if it was issued for this exact mobile number and
-// hasn't expired -- see _lib/otpSessionToken.js. Without that binding,
-// 2Factor's "OTP Matched" says nothing about WHICH phone was verified, and
-// a caller could verify their own phone then claim someone else's number.
+// Zero matching invoices is NOT an error -- it returns noHistory: true.
 //
-// If the mobile has zero matching invoices, that's NOT an error -- OTP
-// proves phone ownership, not that they're an existing JCM Retails
-// customer. Returns a clear empty-result response instead.
-//
-// Environment variables needed: TWOFACTOR_API_KEY, OTP_SESSION_SECRET,
-// SUPABASE_URL, SUPABASE_SERVICE_KEY
+// Environment variables needed: OTP_SESSION_SECRET, SUPABASE_URL,
+// SUPABASE_SERVICE_KEY
 const { createClient } = require('@supabase/supabase-js');
-const { verifyOtp } = require('./_lib/twoFactor');
-const { verifyTicket } = require('./_lib/otpSessionToken');
+const { checkOtp } = require('./_lib/otpStore');
 const { findInvoicesByMobile, normalizeMobile } = require('./_lib/verifyCustomer');
 const { attachInvoiceItems } = require('./_lib/attachInvoiceItems');
 
@@ -38,25 +29,29 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { mobile, ticket, otp } = req.body || {};
-  if (!mobile || !ticket || !otp) {
-    res.status(400).json({ error: 'Missing mobile number, verification ticket, or code.' });
+  const { mobile, otp } = req.body || {};
+  if (!mobile || !otp) {
+    res.status(400).json({ error: 'Missing mobile number or code.' });
     return;
   }
 
   try {
     const cleanMobile = normalizeMobile(mobile);
-
-    // Must be normalized the same way send-otp.js normalized it before
-    // signing -- verifyTicket does an exact string comparison.
-    const sessionId = verifyTicket(String(ticket), cleanMobile);
-    if (!sessionId) {
-      res.status(401).json({ error: 'This code has expired or is no longer valid. Please request a new one.' });
+    if (cleanMobile.length !== 10) {
+      res.status(400).json({ error: 'Please enter a valid 10-digit mobile number.' });
       return;
     }
 
-    const isValid = await verifyOtp(sessionId, String(otp));
-    if (!isValid) {
+    const result = await checkOtp(supabase, cleanMobile, String(otp));
+    if (result === 'expired') {
+      res.status(401).json({ error: 'This code has expired. Please request a new one.' });
+      return;
+    }
+    if (result === 'locked') {
+      res.status(401).json({ error: 'Too many wrong attempts. Please request a new code.' });
+      return;
+    }
+    if (result !== 'ok') {
       res.status(401).json({ error: 'Incorrect code. Please try again.' });
       return;
     }
