@@ -5,20 +5,21 @@
 // print-ready page from the design handoff -- this endpoint just injects
 // window.__INVOICE__ before it runs, then captures page.pdf().
 //
-// POST body: { mobile, vch_no }
+// POST body: { token, vch_no }
 //
-// Re-verifies invoice ownership by mobile number (same match logic as
-// verify-otp.js -- login is OTP-only now, so there's no last4 code to
-// re-check) AND confirms the requested vch_no is actually in that
-// customer's invoice list -- this is a separate authenticated request, not
-// a continuation of a prior one, so it re-proves ownership rather than
-// trusting a client-supplied vch_no on its own.
+// `token` is the login pass verify-otp.js issued after a correct WhatsApp
+// code (see _lib/loginToken.js). The mobile number is taken FROM the pass,
+// never from the request, so nobody can download an invoice without having
+// logged in as its owner. The requested vch_no must also be in that
+// number's invoice list.
 //
-// Environment variables needed: SUPABASE_URL, SUPABASE_SERVICE_KEY
+// Environment variables needed: SUPABASE_URL, SUPABASE_SERVICE_KEY,
+// OTP_SESSION_SECRET
 
 const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
 const { findInvoicesByMobile } = require('./_lib/verifyCustomer');
+const { verifyLoginToken } = require('./_lib/loginToken');
 const { stateNameForCode } = require('./_lib/gstStateCodes');
 
 const supabase = createClient(
@@ -103,7 +104,13 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { mobile, vch_no: vchNo } = req.body || {};
+  const { token, vch_no: vchNo } = req.body || {};
+
+  const mobile = verifyLoginToken(token);
+  if (!mobile) {
+    res.status(401).json({ error: 'Your session has expired. Please log in again.' });
+    return;
+  }
 
   if (!vchNo) {
     res.status(400).json({ error: 'Missing invoice number.' });

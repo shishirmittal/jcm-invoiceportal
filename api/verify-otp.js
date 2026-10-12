@@ -16,6 +16,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { checkOtp } = require('./_lib/otpStore');
 const { findInvoicesByMobile, normalizeMobile } = require('./_lib/verifyCustomer');
 const { attachInvoiceItems } = require('./_lib/attachInvoiceItems');
+const { createLoginToken } = require('./_lib/loginToken');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -79,6 +80,8 @@ module.exports = async (req, res) => {
     res.status(200).json({
       customer,
       invoices: fullInvoices,
+      // Login pass for follow-up requests (PDF download) -- see _lib/loginToken.js
+      token: createLoginToken(cleanMobile),
     });
   } catch (err) {
     console.error('verify-otp error:', err);

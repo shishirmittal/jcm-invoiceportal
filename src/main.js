@@ -17,6 +17,7 @@ const state = {
   otpSent: false,
   otp: '',
   mobile: '',
+  token: null, // login pass from /api/verify-otp, required for PDF downloads
   customer: null,
   invoices: [],
   search: '',
@@ -35,6 +36,7 @@ function saveSession() {
       SESSION_KEY,
       JSON.stringify({
         mobile: state.mobile,
+        token: state.token,
         customer: state.customer,
         invoices: state.invoices,
         savedAt: Date.now(),
@@ -50,7 +52,7 @@ function loadSession() {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || !parsed.customer || !Array.isArray(parsed.invoices)) return null;
+    if (!parsed || !parsed.token || !parsed.customer || !Array.isArray(parsed.invoices)) return null;
     if (Date.now() - parsed.savedAt > SESSION_TTL_MS) return null;
     return parsed;
   } catch {
@@ -113,6 +115,7 @@ function applyRoute(routeState, mode) {
 // Runs after a successful OTP login.
 function finishLogin(data) {
   state.customer = data.customer;
+  state.token = data.token || null;
   state.invoices = data.invoices || [];
   state.search = '';
   state.otpSent = false;
@@ -158,6 +161,7 @@ const actions = {
     state.otpSent = false;
     state.otp = '';
     state.mobile = '';
+    state.token = null;
     state.customer = null;
     state.invoices = [];
     state.search = '';
@@ -180,7 +184,7 @@ const actions = {
     const res = await fetch('/api/invoice-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile: state.mobile, vch_no: target.vch_no }),
+      body: JSON.stringify({ token: state.token, vch_no: target.vch_no }),
     });
 
     if (!res.ok) {
@@ -220,6 +224,7 @@ function boot() {
   const session = loadSession();
   if (session) {
     state.mobile = session.mobile;
+    state.token = session.token;
     state.customer = session.customer;
     state.invoices = session.invoices;
   }
