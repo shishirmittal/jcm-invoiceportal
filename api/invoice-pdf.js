@@ -69,15 +69,18 @@ function formatDateTimeIST(isoDatetime) {
   return `${dd}-${mm}-${ist.getUTCFullYear()} ${hh}:${mi}`;
 }
 
-// challan_refs is unreliable as of this data: confirmed (via live invoice
-// comparison) to sometimes hold sales order numbers (e.g. "SO/2627/536") or
-// the invoice's own self-reference, not just real challan numbers -- the
-// upstream sync query needs a `WHERE t3.No LIKE 'Challan%'` filter before
-// this column can be trusted. Filtering out self-references client-side
-// isn't enough (it doesn't catch sales-order numbers), so this is disabled
-// entirely -- never surfaced on the PDF -- until that query fix lands.
-function realChallanRef() {
-  return '';
+// challan_refs / so_refs come from Busy's Tran3 via the server syncs, which
+// keep only values starting "Challan" and "SO/" respectively (the earlier
+// mixed-up data is gone). An invoice can reference several, comma-separated.
+// Belt-and-braces: drop anything that is the invoice's own number.
+function cleanRefs(raw, vchNo) {
+  if (!raw) return '';
+  const own = String(vchNo || '').trim();
+  return String(raw)
+    .split(',')
+    .map((r) => r.trim())
+    .filter((r) => r && r !== own)
+    .join(', ');
 }
 
 async function launchBrowser() {
@@ -139,7 +142,7 @@ module.exports = async (req, res) => {
       .select(
         'vch_no, vch_date, total_amount, taxable_amount, customer_name, customer_address, ' +
           'customer_mobile, customer_gst_no, place_of_supply_code, is_interstate, transport, ' +
-          'station, einvoice_irn, einvoice_ack_no, einvoice_ack_date, last_synced_at, challan_refs'
+          'station, einvoice_irn, einvoice_ack_no, einvoice_ack_date, last_synced_at, challan_refs, so_refs'
       )
       .eq('vch_no', vchNo)
       .limit(1)
@@ -180,7 +183,8 @@ module.exports = async (req, res) => {
         transport: invoice.transport || '',
         station: invoice.station || '',
         reverseCharge: 'No',
-        challan: realChallanRef(invoice.challan_refs, invoice.vch_no),
+        challan: cleanRefs(invoice.challan_refs, invoice.vch_no),
+        so: cleanRefs(invoice.so_refs, invoice.vch_no),
         reference: '',
       },
       eInvoice: {

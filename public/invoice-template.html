@@ -185,7 +185,7 @@ const DEMO_INVOICE = {
     mobile: "9977011755",
     gstin: "23BBLPJ2574D1ZV"
   },
-  supply: { placeOfSupply: "Madhya Pradesh (23)", transport: "Transport", station: "Badnawar", reverseCharge: "No", challan: "", reference: "" },
+  supply: { placeOfSupply: "Madhya Pradesh (23)", transport: "Transport", station: "Badnawar", reverseCharge: "No", challan: "", so: "", reference: "" },
   eInvoice: { irn: "", ackNo: "", ackDate: "" },
   generated: { at: "20-08-2026 22:41", by: "" },
   payUrl: "#", pdfUrl: "#",
@@ -302,6 +302,7 @@ function render(inv) {
         <span class="k">Station</span><span class="${inv.supply.station ? "" : "nil"}">${esc(inv.supply.station) || "—"}</span>
         <span class="k">Reverse charge</span><span>${esc(inv.supply.reverseCharge)}</span>
         ${inv.supply.challan ? `<span class="k">Challan</span><span>${esc(inv.supply.challan)}</span>` : ""}
+        ${inv.supply.so ? `<span class="k">SO No.</span><span>${esc(inv.supply.so)}</span>` : ""}
         <span class="k">Reference</span><span class="${inv.supply.reference ? "" : "nil"}">${esc(inv.supply.reference) || "—"}</span>
       </div>
     </div>
